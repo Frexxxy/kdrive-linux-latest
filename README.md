@@ -1,35 +1,32 @@
-# kDrive Latest (for Linux AppImage)
+# kDrive Latest (Linux AppImage, amd64)
 
-This repository provides a **stable "latest" download URL** for [Infomaniak kDrive](https://www.infomaniak.com/en/ksuite/kdrive) Linux AppImages.
+Stable "latest" download URL for the [Infomaniak kDrive](https://www.infomaniak.com/en/ksuite/kdrive) Linux AppImage,
+for use with Gear Lever's *Static URL* update feature.
 
-It automatically fetches the newest version from Infomaniak's JSON endpoint and makes it available via GitHub Releases under consistent filenames.
+Fork of [eylenburg/kdrive-linux-latest](https://github.com/eylenburg/kdrive-linux-latest) with a reworked workflow.
 
-## Stable URLs (for Gear Lever)
+## Stable URL
 
-### AMD64 (x86_64)
-https://github.com/eylenburg/kdrive-linux-latest/releases/latest/download/kDrive-latest-amd64.AppImage
+https://github.com/Frexxxy/kdrive-linux-latest/releases/latest/download/kDrive-latest-amd64.AppImage
 
+Only amd64 (x86_64) is provided.
 
-### ARM64
-https://github.com/eylenburg/kdrive-linux-latest/releases/latest/download/kDrive-latest-arm64.AppImage
+## How to use with Gear Lever
 
+1. Open **Gear Lever** and select your kDrive AppImage.
+2. In **Update Management**, choose **Static URL**.
+3. Paste the URL above and save.
 
-## How to Use with Gear Lever
+## How it works
 
-1. Open **Gear Lever**.
-2. Select your existing kDrive AppImage.
-3. In the **Update Management** section, choose **Static URL**.
-4. Paste the URL from above (AMD64 or ARM64 depending on your CPU).
-6. Save.
+- A GitHub Action runs daily (08:00 UTC) and can be started manually (*Actions → Run workflow*).
+- It reads Infomaniak's update JSON (`https://www.infomaniak.com/drive/latest`).
+- Only download URLs under `https://download.storage.infomaniak.com/drive/desktopclient/` are accepted.
+- The AppImage is downloaded only if the version differs from the current release title (`kDrive <version>`).
+- The file is uploaded unchanged to the `latest` release; its SHA-256 is printed in the workflow log.
+- No third-party actions are used, only `curl`, `jq` and the GitHub CLI preinstalled on the runner.
 
-Gear Lever will now automatically check for updates and notify you when a new version is available.
+## Note
 
-## How It Works
-
-- A daily GitHub Action checks Infomaniak's update JSON.
-- If a new version is detected, it downloads the AppImage and updates the `latest` release.
-- The URL above always points to the newest version (GitHub's `/latest/download/` redirect).
-
-## Why This Exists
-
-Infomaniak's direct download links contain version numbers, which makes them unsuitable for Gear Lever's Static URL feature. This repo provides a stable endpoint.
+GitHub disables scheduled workflows after about 60 days without repository activity.
+If the release title stops showing new versions, re-enable the workflow under *Actions*.
