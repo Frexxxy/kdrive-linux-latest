@@ -5,63 +5,41 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch:
 
-# Fix for "Resource not accessible by integration"
 permissions:
   contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Fetch latest info from Infomaniak
-        id: info
+      - name: Infomaniak abfragen und bei neuer Version hochladen
         run: |
+          set -euo pipefail
           JSON=$(curl -sSf https://www.infomaniak.com/drive/latest)
-          
-          echo "AMD_URL=$(echo "$JSON" | jq -r '."linux-amd64".downloadurl')" >> $GITHUB_ENV
-          echo "AMD_VERSION=$(echo "$JSON" | jq -r '."linux-amd64".versionstring')" >> $GITHUB_ENV
-          
-          echo "ARM_URL=$(echo "$JSON" | jq -r '."linux-arm64".downloadurl')" >> $GITHUB_ENV
-          echo "ARM_VERSION=$(echo "$JSON" | jq -r '."linux-arm64".versionstring')" >> $GITHUB_ENV
+          VER=$(jq -r '."linux-amd64".version' <<<"$JSON")
+          URL=$(jq -r '."linux-amd64".downloadurl' <<<"$JSON")
 
-      - name: Check current release version
-        id: current
-        run: |
-          CURRENT=$(curl -sSf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/releases/latest \
-            | jq -r .tag_name || echo "none")
-          echo "CURRENT_VERSION=$CURRENT" >> $GITHUB_ENV
-          echo "Current version on GitHub: $CURRENT"
+          # Nur Downloads direkt von Infomaniak zulassen
+          case "$URL" in
+            https://download.storage.infomaniak.com/drive/desktopclient/*.AppImage) ;;
+            *) echo "Unerwartete URL: $URL"; exit 1 ;;
+          esac
 
-      - name: Download new AMD64 (if changed)
-        if: env.AMD_VERSION != env.CURRENT_VERSION
-        run: |
-          echo "New AMD64 version: ${{ env.AMD_VERSION }}"
-          curl -L --progress-bar -o "kDrive-latest-amd64.AppImage" "${{ env.AMD_URL }}"
+          CUR=$(gh release view latest --json name -q .name 2>/dev/null || echo none)
+          if [ "$CUR" = "kDrive $VER" ]; then
+            echo "Unverändert: $VER"; exit 0
+          fi
 
-      - name: Download new ARM64 (if changed)
-        if: env.ARM_VERSION != env.CURRENT_VERSION
-        run: |
-          echo "New ARM64 version: ${{ env.ARM_VERSION }}"
-          curl -L --progress-bar -o "kDrive-latest-arm64.AppImage" "${{ env.ARM_URL }}"
+          curl -sSfL -o kDrive-latest-amd64.AppImage "$URL"
+          sha256sum kDrive-latest-amd64.AppImage
 
-      - name: Create or update Release
-        if: env.AMD_VERSION != env.CURRENT_VERSION || env.ARM_VERSION != env.CURRENT_VERSION
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: "kDrive Latest"
-          body: |
-            Automatic update from Infomaniak kDrive
-            
-            • AMD64: ${{ env.AMD_VERSION }}
-            • ARM64: ${{ env.ARM_VERSION }}
-          files: |
-            kDrive-latest-amd64.AppImage
-            kDrive-latest-arm64.AppImage
-          make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if [ "$CUR" = none ]; then
+            gh release create latest kDrive-latest-amd64.AppImage \
+              --title "kDrive $VER" --notes "Quelle: $URL" --latest
+          else
+            gh release upload latest kDrive-latest-amd64.AppImage --clobber
+            gh release edit latest --title "kDrive $VER" --notes "Quelle: $URL"
+          fi
